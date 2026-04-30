@@ -1,0 +1,41 @@
+# 环境变量
+.env
+
+# 日志文件
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 临时文件
+*.tmp
+*.swp
+*.bak
+tmp/
+tmp-*.err
+tmp-*.out
+.superpowers/
+zhida-ai-frontend/tmp-*/
+zhida-ai-frontend/tmp-*.err
+zhida-ai-frontend/tmp-*.out
+
+# Git worktrees
+.worktrees/
+.claude/
+
+# Runtime uploads
+uploads/
+
+# Docker volumes
+postgres_data/
+
+# Maven
+target/
+/repository/
+/zhida-image-search-mcp-server/repository/
+
+# 敏感文件
+password.txt
+config-summary.txt

@@ -1,0 +1,30 @@
+[
+  {
+    "id": "agentic-rag-basic",
+    "question": "什么是 Agentic RAG？",
+    "category": "agent",
+    "expectedKeywords": ["Agentic RAG", "知识库"],
+    "requireSources": true
+  },
+  {
+    "id": "source-attribution",
+    "question": "回答时为什么要做来源追溯？",
+    "category": "agent",
+    "expectedKeywords": ["来源", "追溯"],
+    "requireSources": true
+  },
+  {
+    "id": "mcp-role",
+    "question": "MCP 在 Agent 系统里解决什么问题？",
+    "category": "agent",
+    "expectedKeywords": ["MCP", "工具"],
+    "requireSources": true
+  },
+  {
+    "id": "no-answer-boundary",
+    "question": "知识库里没有的信息应该如何回答？",
+    "category": "agent",
+    "expectedKeywords": ["没有", "不要编造"],
+    "requireSources": false
+  }
+]
