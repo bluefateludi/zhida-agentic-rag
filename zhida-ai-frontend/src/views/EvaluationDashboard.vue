@@ -165,12 +165,13 @@ async function handleRun() {
 
 <style scoped>
 .evaluation-page {
-  min-height: 100vh;
+  height: 100vh;
   overflow-y: auto;
-  padding: 24px;
+  padding: 24px 24px 40px;
   background:
     linear-gradient(135deg, rgba(88, 166, 173, 0.08), transparent 34%),
     linear-gradient(180deg, #071014 0%, #080b0d 38%, #050607 100%);
+  -webkit-overflow-scrolling: touch;
 }
 
 .evaluation-header,
@@ -484,7 +485,7 @@ async function handleRun() {
 
 @media (max-width: 768px) {
   .evaluation-page {
-    padding: 16px;
+    padding: 16px 16px 28px;
   }
 
   .evaluation-title h1 {
