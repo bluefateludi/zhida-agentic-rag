@@ -12,6 +12,7 @@ const componentFiles = [
   '../src/views/KnowledgeBase.vue',
   '../src/views/PmMode.vue',
   '../src/views/ReportMode.vue',
+  '../src/views/EvaluationDashboard.vue',
   '../src/views/DocumentManager.vue',
   '../src/views/LandingPage.vue'
 ]

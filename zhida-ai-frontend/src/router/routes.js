@@ -45,6 +45,15 @@ export const appRoutes = [
     }
   },
   {
+    path: '/evaluation',
+    name: 'EvaluationDashboard',
+    component: () => import('../views/EvaluationDashboard.vue'),
+    meta: {
+      title: 'RAG 评测仪表盘 - 智答 AI',
+      description: '运行黄金集评测，展示 RAG 回答命中、来源数量和失败用例'
+    }
+  },
+  {
     path: '/documents',
     redirect: '/chat/documents'
   }
