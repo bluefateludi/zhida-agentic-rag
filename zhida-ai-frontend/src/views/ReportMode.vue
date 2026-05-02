@@ -52,7 +52,7 @@
 
           <div class="button-row">
             <button class="control-button submit-button" type="submit" :disabled="isLoading || !form.question">
-              {{ isLoading ? '生成中...' : '生成研究报告' }}
+              {{ isLoading ? '生成中...' : '发送并生成报告' }}
             </button>
             <button class="control-button ghost-button" type="button" :disabled="isLoading" @click="handleReset">
               清空
@@ -272,12 +272,13 @@ function handleReset() {
 
 <style scoped>
 .report-page {
-  min-height: 100vh;
+  height: 100vh;
   overflow-y: auto;
-  padding: 24px;
+  padding: 24px 24px 40px;
   background:
     linear-gradient(135deg, rgba(88, 166, 173, 0.08), transparent 34%),
     linear-gradient(180deg, #071014 0%, #080b0d 38%, #050607 100%);
+  -webkit-overflow-scrolling: touch;
 }
 
 .report-header {
@@ -467,12 +468,26 @@ function handleReset() {
 }
 
 .button-row {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
   gap: 10px;
   flex-wrap: wrap;
+  margin-inline: -2px;
+  padding: 12px 2px 2px;
+  background:
+    linear-gradient(180deg, rgba(13, 17, 19, 0), rgba(13, 17, 19, 0.94) 34%),
+    rgba(13, 17, 19, 0.86);
+  backdrop-filter: blur(10px);
 }
 
 .submit-button {
   min-width: 144px;
+  border-color: rgba(126, 209, 216, 0.34);
+  background:
+    linear-gradient(180deg, rgba(88, 166, 173, 0.28), rgba(47, 125, 134, 0.26)),
+    var(--accent-strong);
+  color: #f7fbfb;
 }
 
 .submit-button:disabled,
@@ -764,7 +779,7 @@ function handleReset() {
 
 @media (max-width: 768px) {
   .report-page {
-    padding: 16px;
+    padding: 16px 16px 28px;
   }
 
   .report-header {
@@ -797,6 +812,15 @@ function handleReset() {
 
   .panel-heading {
     flex-direction: column;
+  }
+
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+  }
+
+  .submit-button {
+    min-width: 0;
   }
 }
 </style>

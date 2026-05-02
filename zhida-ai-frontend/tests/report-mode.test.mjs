@@ -25,3 +25,7 @@ assert.match(reportModeSource, /rewrittenQuestion/, 'report mode should expose r
 assert.match(reportModeSource, /kbEvidence/, 'report mode should expose kb evidence')
 assert.match(reportModeSource, /webEvidence/, 'report mode should expose web evidence')
 assert.match(reportModeSource, /informationGaps/, 'report mode should expose information gaps')
+assert.match(reportModeSource, /发送并生成报告/, 'report form should expose a clear send action')
+assert.match(reportModeSource, /\.report-page\s*\{[^}]*height:\s*100vh/s, 'report page should create a viewport scroll container')
+assert.match(reportModeSource, /\.report-page\s*\{[^}]*overflow-y:\s*auto/s, 'report page should allow vertical scrolling')
+assert.match(reportModeSource, /\.button-row\s*\{[^}]*position:\s*sticky/s, 'report action row should remain reachable while scrolling')
