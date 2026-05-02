@@ -1,0 +1,59 @@
+package com.zhida.aiagent.controller;
+
+import com.zhida.aiagent.model.dto.ResearchBrief;
+import com.zhida.aiagent.service.ResearchAgentService;
+import com.zhida.aiagent.service.WriterAgentService;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.web.servlet.MockMvc;
+
+import java.time.Instant;
+import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@WebMvcTest(ReportController.class)
+class ReportControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @MockBean
+    private ResearchAgentService researchAgentService;
+
+    @MockBean
+    private WriterAgentService writerAgentService;
+
+    @Test
+    void shouldGenerateMarkdownReportFromResearchBrief() throws Exception {
+        ResearchBrief brief = new ResearchBrief(
+                "这个方向值得做吗",
+                "评估这个 Agentic RAG 方向是否值得投入",
+                List.of("核心结论是什么？"),
+                List.of(),
+                List.of(),
+                List.of("缺少用户访谈"),
+                Instant.parse("2026-05-02T10:15:30Z")
+        );
+        when(researchAgentService.buildBrief("这个方向值得做吗", "agent")).thenReturn(brief);
+        when(writerAgentService.writeReport(brief)).thenReturn("# 研究报告\n\n信息不足");
+
+        mockMvc.perform(post("/report/generate")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "question": "这个方向值得做吗",
+                                  "category": "agent"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("\"reportMarkdown\":\"# 研究报告\\n\\n信息不足\"")))
+                .andExpect(content().string(containsString("\"rewrittenQuestion\":\"评估这个 Agentic RAG 方向是否值得投入\"")));
+    }
+}
