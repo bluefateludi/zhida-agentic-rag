@@ -29,6 +29,7 @@
 
         <div class="header-actions">
           <router-link class="header-link" to="/">产品首页</router-link>
+          <router-link class="header-link header-link-accent" to="/report">研究报告模式</router-link>
           <router-link class="header-link" to="/chat/documents">知识库管理</router-link>
         </div>
       </header>

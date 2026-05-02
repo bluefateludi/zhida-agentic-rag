@@ -51,6 +51,10 @@
         <span class="footer-dot"></span>
         <span class="footer-text">产品分析模式</span>
       </router-link>
+      <router-link to="/report" class="footer-link">
+        <span class="footer-dot"></span>
+        <span class="footer-text">研究报告模式</span>
+      </router-link>
       <router-link to="/chat/documents" class="footer-link">
         <span class="footer-dot"></span>
         <span class="footer-text">知识库管理</span>

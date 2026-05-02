@@ -41,6 +41,9 @@
             <router-link class="cta-button hero-primary" :to="landingContent.hero.primaryAction.href">
               {{ landingContent.hero.primaryAction.label }}
             </router-link>
+            <router-link class="secondary-button" to="/report">
+              研究报告模式
+            </router-link>
             <router-link class="secondary-button" to="/pm">
               产品经理模式
             </router-link>
@@ -77,6 +80,12 @@
               <span>Grounded QA</span>
               <strong>流式智能问答</strong>
               <p>围绕知识库进行多轮对话，保留现有聊天工作台和来源引用能力。</p>
+            </article>
+
+            <article class="signal-card signal-card-accent">
+              <span>Research Report</span>
+              <strong>研究与写作双 Agent</strong>
+              <p>把问题改写、证据归纳、信息缺口和 Markdown 报告汇总为更适合展示的研究模式。</p>
             </article>
 
             <article class="signal-card signal-card-grid">
@@ -208,6 +217,9 @@
           <p>进入 `/chat` 后保留现有聊天、来源引用和知识库管理能力，不改 RAG 问答主链路，只收敛前端信息架构。</p>
         </div>
         <div class="closing-actions">
+          <router-link class="secondary-button" to="/report">
+            进入研究报告模式
+          </router-link>
           <router-link class="secondary-button" to="/pm">
             进入产品分析模式
           </router-link>
@@ -491,6 +503,12 @@ import { landingContent } from '../content/landingContent'
 .signal-card-primary {
   background:
     linear-gradient(135deg, rgba(88, 166, 173, 0.12), transparent 36%),
+    rgba(229, 238, 245, 0.03);
+}
+
+.signal-card-accent {
+  background:
+    linear-gradient(135deg, rgba(198, 161, 91, 0.12), transparent 40%),
     rgba(229, 238, 245, 0.03);
 }
 

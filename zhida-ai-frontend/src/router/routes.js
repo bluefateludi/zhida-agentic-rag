@@ -36,6 +36,15 @@ export const appRoutes = [
     }
   },
   {
+    path: '/report',
+    name: 'ReportMode',
+    component: () => import('../views/ReportMode.vue'),
+    meta: {
+      title: '研究报告模式 - 智答 AI',
+      description: '面向企业知识库的研究与写作模式，输出结构化研究简报和 Markdown 报告'
+    }
+  },
+  {
     path: '/documents',
     redirect: '/chat/documents'
   }

@@ -144,6 +144,15 @@ export const pmChatStream = (message, sessionId, category, onMessage, onComplete
   return eventSource
 }
 
+// ==================== 研究报告模式 ====================
+
+export const generateReport = (question, category) => {
+  return request.post('/report/generate', {
+    question,
+    category: category || null
+  })
+}
+
 // ==================== RAG 评测 ====================
 
 export const listEvalCases = () => {

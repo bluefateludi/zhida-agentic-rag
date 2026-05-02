@@ -11,6 +11,7 @@ const componentFiles = [
   '../src/components/ChatInput.vue',
   '../src/views/KnowledgeBase.vue',
   '../src/views/PmMode.vue',
+  '../src/views/ReportMode.vue',
   '../src/views/DocumentManager.vue',
   '../src/views/LandingPage.vue'
 ]
@@ -32,7 +33,7 @@ const deprecatedStyleTokens = [
 
 for (const file of componentFiles) {
   const source = readFileSync(new URL(file, import.meta.url), 'utf8')
-  if (/LandingPage|Sidebar|PmMode/.test(file)) {
+  if (/LandingPage|Sidebar|PmMode|ReportMode/.test(file)) {
     assert.ok(source.includes(`src="${logoUrl}"`), `${file} should use the official logo image`)
   }
   for (const token of deprecatedStyleTokens) {
