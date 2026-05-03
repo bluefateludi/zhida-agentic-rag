@@ -128,6 +128,35 @@
               {{ selectedTrace.errorMessage }}
             </p>
 
+            <section class="timeline-section">
+              <div class="panel-heading">
+                <span class="section-label">Trace Timeline</span>
+                <span>{{ traceTimeline.length }} stages</span>
+              </div>
+
+              <div class="timeline-list">
+                <article
+                  v-for="step in traceTimeline"
+                  :key="step.name"
+                  class="timeline-step"
+                  :class="step.status"
+                >
+                  <span class="timeline-marker" aria-hidden="true"></span>
+                  <div class="timeline-body">
+                    <div class="timeline-step-top">
+                      <h3>{{ step.name }}</h3>
+                      <span class="timeline-status">{{ formatTimelineStatus(step.status) }}</span>
+                    </div>
+                    <p>{{ step.summary }}</p>
+                    <div class="timeline-meta">
+                      <span v-if="step.evidenceCount !== null">{{ step.evidenceCount }} evidence</span>
+                      <span>{{ step.durationLabel }}</span>
+                    </div>
+                  </div>
+                </article>
+              </div>
+            </section>
+
             <section class="source-section">
               <div class="panel-heading">
                 <span class="section-label">Sources</span>
@@ -200,6 +229,11 @@ const requestedTraceId = computed(() => {
   return Array.isArray(value) ? value[0] : value
 })
 const sources = computed(() => parseSources(selectedTrace.value))
+const tracePayload = computed(() => parseJson(selectedTrace.value?.traceJson) || {})
+const traceTimeline = computed(() => {
+  const status = selectedTrace.value?.success === false ? 'blocked' : 'done'
+  return buildTraceTimeline(selectedTrace.value, tracePayload.value, sources.value, status)
+})
 
 onMounted(loadTraces)
 
@@ -261,6 +295,81 @@ function parseSources(trace) {
   return Array.isArray(fromSourcesJson) ? fromSourcesJson : []
 }
 
+function buildTraceTimeline(trace, payload, retrievedSources, status) {
+  if (!trace) return []
+
+  const evidence = Array.isArray(retrievedSources) ? retrievedSources : []
+  const kbEvidenceCount = evidence.filter(source => (source.category || '').toLowerCase() !== 'web').length
+  const webEvidenceCount = evidence.filter(source => (source.category || '').toLowerCase() === 'web').length
+  const latencyLabel = trace.latencyMs !== null && trace.latencyMs !== undefined
+    ? `${trace.latencyMs}ms total`
+    : 'duration pending'
+
+  if (trace.mode === 'REPORT') {
+    return [
+      {
+        name: 'Query Rewrite',
+        status,
+        summary: payload.rewrittenQuery || trace.rewrittenQuery || '保留原始问题，等待后端补充改写详情。',
+        evidenceCount: null,
+        durationLabel: 'duration included'
+      },
+      {
+        name: 'KB Retrieval',
+        status,
+        summary: kbEvidenceCount ? '已整理知识库证据，供研究简报引用。' : '本次没有记录知识库证据。',
+        evidenceCount: kbEvidenceCount,
+        durationLabel: 'duration pending'
+      },
+      {
+        name: 'Web Research',
+        status,
+        summary: webEvidenceCount ? '已补充公开网络证据。' : '未触发或未记录 Web Research 证据。',
+        evidenceCount: webEvidenceCount,
+        durationLabel: 'duration pending'
+      },
+      {
+        name: 'Writer Agent',
+        status,
+        summary: '写作 Agent 基于 ResearchBrief 组织报告结构与结论。',
+        evidenceCount: evidence.length,
+        durationLabel: 'duration included'
+      },
+      {
+        name: 'Report Output',
+        status,
+        summary: trace.success === false ? (trace.errorMessage || '报告生成失败。') : '报告 Markdown 已输出，并可从报告页跳转追踪。',
+        evidenceCount: evidence.length,
+        durationLabel: latencyLabel
+      }
+    ]
+  }
+
+  return [
+    {
+      name: 'Query Rewrite',
+      status,
+      summary: payload.rewrittenQuery || trace.rewrittenQuery || '保留原始问题，等待后端补充改写详情。',
+      evidenceCount: null,
+      durationLabel: 'duration included'
+    },
+    {
+      name: 'Retrieval',
+      status,
+      summary: evidence.length ? '已记录召回片段，可在来源区查看详情。' : '本次没有记录召回来源。',
+      evidenceCount: evidence.length,
+      durationLabel: 'duration pending'
+    },
+    {
+      name: 'Answer',
+      status,
+      summary: trace.success === false ? (trace.errorMessage || '回答生成失败。') : '回答阶段完成，Trace 记录已持久化。',
+      evidenceCount: evidence.length,
+      durationLabel: latencyLabel
+    }
+  ]
+}
+
 function parseJson(value) {
   if (!value) return null
   try {
@@ -283,6 +392,12 @@ function formatTime(value) {
 
 function formatScore(score) {
   return Number(score).toFixed(2)
+}
+
+function formatTimelineStatus(status) {
+  if (status === 'blocked') return 'BLOCKED'
+  if (status === 'pending') return 'PENDING'
+  return 'DONE'
 }
 </script>
 
@@ -336,6 +451,8 @@ function formatScore(score) {
 .trace-row-meta,
 .detail-heading,
 .metric-strip,
+.timeline-step-top,
+.timeline-meta,
 .source-meta {
   display: flex;
   align-items: center;
@@ -345,6 +462,7 @@ function formatScore(score) {
 .toolbar-actions,
 .mode-filter,
 .metric-strip,
+.timeline-meta,
 .source-meta,
 .trace-row-meta {
   gap: 10px;
@@ -647,6 +765,105 @@ function formatScore(score) {
 
 .inline-error {
   margin-top: 16px;
+}
+
+.timeline-section {
+  margin-top: 22px;
+}
+
+.timeline-list {
+  position: relative;
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-list::before {
+  content: "";
+  position: absolute;
+  left: 9px;
+  top: 10px;
+  bottom: 10px;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(126, 209, 216, 0.44), rgba(198, 161, 91, 0.18));
+}
+
+.timeline-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.timeline-marker {
+  position: relative;
+  z-index: 1;
+  width: 19px;
+  height: 19px;
+  margin-top: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(126, 209, 216, 0.42);
+  background: #0d171a;
+  box-shadow: 0 0 0 4px rgba(88, 166, 173, 0.08);
+}
+
+.timeline-step.blocked .timeline-marker {
+  border-color: rgba(217, 103, 103, 0.5);
+  box-shadow: 0 0 0 4px rgba(217, 103, 103, 0.08);
+}
+
+.timeline-body {
+  padding: 14px 16px;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.timeline-step-top {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.timeline-step h3 {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: 510;
+  line-height: 1.35;
+}
+
+.timeline-step p {
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  line-height: 1.65;
+}
+
+.timeline-status,
+.timeline-meta span {
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-quaternary);
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+}
+
+.timeline-status {
+  border-color: rgba(79, 180, 119, 0.22);
+  background: rgba(79, 180, 119, 0.1);
+  color: #89e2ac;
+}
+
+.timeline-step.blocked .timeline-status {
+  border-color: rgba(217, 103, 103, 0.22);
+  background: rgba(217, 103, 103, 0.12);
+  color: #f2b1b1;
+}
+
+.timeline-meta {
+  margin-top: 10px;
 }
 
 .source-section {
