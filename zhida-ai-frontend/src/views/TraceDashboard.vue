@@ -297,6 +297,10 @@ function parseSources(trace) {
 
 function buildTraceTimeline(trace, payload, retrievedSources, status) {
   if (!trace) return []
+  const payloadTimeline = Array.isArray(payload.timeline) ? payload.timeline : []
+  if (payloadTimeline.length) {
+    return payloadTimeline.map(step => normalizeTimelineStep(step))
+  }
 
   const evidence = Array.isArray(retrievedSources) ? retrievedSources : []
   const kbEvidenceCount = evidence.filter(source => (source.category || '').toLowerCase() !== 'web').length
@@ -368,6 +372,21 @@ function buildTraceTimeline(trace, payload, retrievedSources, status) {
       durationLabel: latencyLabel
     }
   ]
+}
+
+function normalizeTimelineStep(step) {
+  const status = String(step.status || 'DONE').toLowerCase()
+  const durationLabel = step.durationMs !== null && step.durationMs !== undefined
+    ? `${step.durationMs}ms`
+    : 'duration pending'
+
+  return {
+    name: step.name || 'Unknown Stage',
+    status: status === 'blocked' ? 'blocked' : status === 'pending' ? 'pending' : 'done',
+    summary: step.summary || '后端已记录该阶段。',
+    evidenceCount: step.evidenceCount ?? null,
+    durationLabel
+  }
 }
 
 function parseJson(value) {

@@ -11,9 +11,11 @@ public record RagTrace(
         String rewrittenQuery,
         String category,
         Long latencyMs,
-        List<RetrievalTraceItem> retrievals
+        List<RetrievalTraceItem> retrievals,
+        List<TraceTimelineStep> timeline
 ) {
     public RagTrace {
         retrievals = retrievals == null ? List.of() : List.copyOf(retrievals);
+        timeline = timeline == null ? List.of() : List.copyOf(timeline);
     }
 }

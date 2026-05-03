@@ -64,6 +64,82 @@ class RagTraceServiceTest {
         assertThat(trace.traceId()).isEqualTo("trace-1");
         assertThat(trace.retrievals()).hasSize(1);
         assertThat(trace.retrievals().getFirst().fileName()).isEqualTo("agent.md");
+        assertThat(trace.timeline())
+                .extracting("name")
+                .containsExactly("Query Rewrite", "Retrieval", "Answer");
+        assertThat(trace.timeline())
+                .extracting("status")
+                .containsOnly("DONE");
+        assertThat(trace.timeline().get(1).evidenceCount()).isEqualTo(1);
+        assertThat(trace.timeline().get(2).durationMs()).isEqualTo(128L);
+    }
+
+    @Test
+    void shouldPersistReportTraceTimelineWithResearchStages() throws Exception {
+        RagTraceLogRepository repository = mock(RagTraceLogRepository.class);
+        RagTraceService service = new RagTraceService(repository, new ObjectMapper());
+        RetrievalTraceItem kbRetrieval = new RetrievalTraceItem(
+                1,
+                7L,
+                "Agent 知识库",
+                "agent.md",
+                "agent",
+                3,
+                0.86,
+                "RAG 召回内容"
+        );
+        RetrievalTraceItem webRetrieval = new RetrievalTraceItem(
+                2,
+                null,
+                "公开研究资料",
+                "https://example.com/research",
+                "web",
+                null,
+                null,
+                "公开资料摘要"
+        );
+
+        service.recordSuccess(
+                "REPORT",
+                null,
+                "AI Agent 行业趋势",
+                "分析 AI Agent 行业趋势",
+                "agent",
+                "trace-report",
+                250L,
+                List.of(kbRetrieval, webRetrieval)
+        );
+
+        ArgumentCaptor<RagTraceLog> captor = ArgumentCaptor.forClass(RagTraceLog.class);
+        verify(repository).save(captor.capture());
+
+        RagTrace trace = new ObjectMapper().readValue(captor.getValue().getTraceJson(), RagTrace.class);
+        assertThat(trace.timeline())
+                .extracting("name")
+                .containsExactly("Query Rewrite", "KB Retrieval", "Web Research", "Writer Agent", "Report Output");
+        assertThat(trace.timeline().get(1).evidenceCount()).isEqualTo(1);
+        assertThat(trace.timeline().get(2).evidenceCount()).isEqualTo(1);
+        assertThat(trace.timeline().get(4).durationMs()).isEqualTo(250L);
+    }
+
+    @Test
+    void shouldReadLegacyTraceJsonWithoutTimeline() throws Exception {
+        RagTrace trace = new ObjectMapper().readValue(
+                """
+                        {
+                          "traceId": "legacy-trace",
+                          "originalQuery": "旧问题",
+                          "rewrittenQuery": "旧改写",
+                          "category": "agent",
+                          "latencyMs": 88,
+                          "retrievals": []
+                        }
+                        """,
+                RagTrace.class
+        );
+
+        assertThat(trace.traceId()).isEqualTo("legacy-trace");
+        assertThat(trace.timeline()).isEmpty();
     }
 
     @Test
