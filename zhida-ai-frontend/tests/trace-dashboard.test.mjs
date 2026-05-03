@@ -35,5 +35,10 @@ assert.match(traceSource, /rewrittenQuery/, 'dashboard should render rewritten q
 assert.match(traceSource, /latencyMs/, 'dashboard should render latency')
 assert.match(traceSource, /retrievalCount/, 'dashboard should render retrieval count')
 assert.match(traceSource, /sourcesJson/, 'dashboard should parse persisted sources')
+assert.match(
+  traceSource,
+  /运行 `\/chat`、`\/pm`、`\/report` 或 `\/evaluation` 后/,
+  'dashboard empty state should tell users report mode also produces traces'
+)
 assert.match(traceSource, /\.trace-page\s*\{\s*\n\s*height:\s*100vh/s, 'trace page should create a viewport scroll container')
 assert.match(traceSource, /\.trace-page\s*\{[^}]*overflow-y:\s*auto/s, 'trace page should allow vertical scrolling')

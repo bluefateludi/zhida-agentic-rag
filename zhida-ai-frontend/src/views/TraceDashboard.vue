@@ -137,7 +137,7 @@
           <div v-else class="empty-detail">
             <span class="section-label">Waiting</span>
             <h2>选择一条 trace 查看详情。</h2>
-            <p>运行 `/chat`、`/pm` 或 `/evaluation` 后，RAG 执行记录会出现在这里。</p>
+            <p>运行 `/chat`、`/pm`、`/report` 或 `/evaluation` 后，RAG 执行记录会出现在这里。</p>
           </div>
         </article>
       </section>
