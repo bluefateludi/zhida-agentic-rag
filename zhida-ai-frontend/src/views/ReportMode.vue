@@ -110,6 +110,12 @@
               </div>
               <div class="report-actions">
                 <span class="generated-time">{{ formattedGeneratedAt }}</span>
+                <button class="control-button copy-button" type="button" @click="copyMarkdownReport">
+                  复制 Markdown
+                </button>
+                <button class="control-button copy-button" type="button" @click="copyBriefJson">
+                  复制简报 JSON
+                </button>
                 <router-link
                   v-if="traceId"
                   class="control-button trace-link"
@@ -119,6 +125,7 @@
                 </router-link>
               </div>
             </div>
+            <p v-if="copyStatus" class="copy-status">{{ copyStatus }}</p>
             <div class="markdown-body" v-html="renderedReport"></div>
           </article>
 
@@ -230,6 +237,7 @@ const form = reactive({
 const brief = ref(null)
 const reportMarkdown = ref('')
 const traceId = ref('')
+const copyStatus = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
 
@@ -260,6 +268,7 @@ async function handleGenerate() {
 
   isLoading.value = true
   errorMessage.value = ''
+  copyStatus.value = ''
 
   try {
     const res = await generateReport(form.question, form.category)
@@ -283,7 +292,28 @@ function handleReset() {
   brief.value = null
   reportMarkdown.value = ''
   traceId.value = ''
+  copyStatus.value = ''
   errorMessage.value = ''
+}
+
+async function copyMarkdownReport() {
+  await copyText(reportMarkdown.value, 'Markdown 报告已复制。')
+}
+
+async function copyBriefJson() {
+  if (!brief.value) return
+  await copyText(JSON.stringify(brief.value, null, 2), '研究简报 JSON 已复制。')
+}
+
+async function copyText(text, successMessage) {
+  if (!text) return
+  try {
+    await navigator.clipboard.writeText(text)
+    copyStatus.value = successMessage
+  } catch (error) {
+    console.error('Failed to copy report content', error)
+    copyStatus.value = '复制失败，请检查浏览器权限。'
+  }
 }
 </script>
 
@@ -621,6 +651,24 @@ function handleReset() {
   border-color: rgba(126, 209, 216, 0.28);
   background: rgba(88, 166, 173, 0.12);
   color: var(--accent-hover);
+}
+
+.copy-button {
+  min-height: 34px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text-secondary);
+}
+
+.copy-status {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(126, 209, 216, 0.2);
+  background: rgba(88, 166, 173, 0.08);
+  color: var(--accent-hover);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .markdown-body {
