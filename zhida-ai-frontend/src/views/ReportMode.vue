@@ -15,6 +15,7 @@
       <nav class="report-nav">
         <router-link to="/">首页</router-link>
         <router-link to="/chat">知识库工作台</router-link>
+        <router-link to="/traces">Trace Dashboard</router-link>
         <router-link to="/pm">产品分析模式</router-link>
       </nav>
     </header>

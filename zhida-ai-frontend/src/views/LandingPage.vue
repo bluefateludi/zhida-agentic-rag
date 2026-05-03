@@ -47,6 +47,9 @@
             <router-link class="secondary-button" to="/evaluation">
               RAG 评测
             </router-link>
+            <router-link class="secondary-button" to="/traces">
+              Trace Dashboard
+            </router-link>
             <router-link class="secondary-button" to="/pm">
               产品经理模式
             </router-link>
@@ -225,6 +228,9 @@
           </router-link>
           <router-link class="secondary-button" to="/evaluation">
             查看 RAG 评测
+          </router-link>
+          <router-link class="secondary-button" to="/traces">
+            查看 Trace Dashboard
           </router-link>
           <router-link class="secondary-button" to="/pm">
             进入产品分析模式

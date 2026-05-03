@@ -8,7 +8,7 @@ import com.zhida.aiagent.model.entity.ChatMessage;
 import com.zhida.aiagent.model.enums.MessageRole;
 import com.zhida.aiagent.rag.KnowledgeBaseRagConfig;
 import com.zhida.aiagent.rag.QueryRewriter;
-import com.zhida.aiagent.rag.SourceDocumentCollector;
+import com.zhida.aiagent.rag.RagTraceCollector;
 import com.zhida.aiagent.repository.ChatMessageRepository;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -45,6 +45,9 @@ public class ChatService {
     @Resource
     private ChatMessageRepository chatMessageRepository;
 
+    @Resource
+    private RagTraceService ragTraceService;
+
     private static final String SYSTEM_PROMPT = """
             你是「智答 AI」——一个专业的企业知识库问答助手。
 
@@ -80,31 +83,38 @@ public class ChatService {
      */
     public ChatServiceResponse chat(String message, String sessionId, String category) {
         log.info("收到聊天请求 - session: {}, category: {}, message: {}", sessionId, category, message);
-        saveMessage(sessionId, MessageRole.USER, message, null);
-
-        String rewrittenQuery = queryRewriter.doQueryRewrite(message);
+        long startedAt = System.nanoTime();
+        String rewrittenQuery = message;
         String traceId = UUID.randomUUID().toString();
+        RagTraceCollector traceCollector = new RagTraceCollector();
 
-        SourceDocumentCollector sourceCollector = new SourceDocumentCollector();
+        try {
+            saveMessage(sessionId, MessageRole.USER, message, null);
 
-        var ragAdvisor = KnowledgeBaseRagConfig.createRagAdvisor(pgVectorVectorStore, category, sourceCollector::capture);
+            rewrittenQuery = queryRewriter.doQueryRewrite(message);
+            var ragAdvisor = KnowledgeBaseRagConfig.createRagAdvisor(pgVectorVectorStore, category, traceCollector::capture);
 
-        var aiResponse = chatClient
-                .prompt()
-                .user(rewrittenQuery)
-                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, sessionId))
-                .advisors(ragAdvisor)
-                .call()
-                .chatResponse();
+            var aiResponse = chatClient
+                    .prompt()
+                    .user(rewrittenQuery)
+                    .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, sessionId))
+                    .advisors(ragAdvisor)
+                    .call()
+                    .chatResponse();
 
-        String content = aiResponse.getResult().getOutput().getText();
+            String content = aiResponse.getResult().getOutput().getText();
 
-        List<SourceReference> sources = buildSourceReferences(sourceCollector.getDocuments(), traceId);
-        log.info("RAG 检索来源数: {}, AI 回复长度: {}", sources.size(), content != null ? content.length() : 0);
+            List<SourceReference> sources = buildSourceReferences(traceCollector.getDocuments(), traceId);
+            log.info("RAG 检索来源数: {}, AI 回复长度: {}", sources.size(), content != null ? content.length() : 0);
 
-        saveMessage(sessionId, MessageRole.ASSISTANT, content, sources);
+            saveMessage(sessionId, MessageRole.ASSISTANT, content, sources);
+            recordTraceSuccess("CHAT", sessionId, message, rewrittenQuery, category, traceId, startedAt, traceCollector);
 
-        return new ChatServiceResponse(content, sources);
+            return new ChatServiceResponse(content, sources);
+        } catch (RuntimeException e) {
+            recordTraceFailure("CHAT", sessionId, message, rewrittenQuery, category, traceId, startedAt, e);
+            throw e;
+        }
     }
 
     /**
@@ -112,18 +122,20 @@ public class ChatService {
      */
     public Flux<ChatStreamEvent> chatStream(String message, String sessionId, String category) {
         log.info("收到流式聊天请求 - session: {}, category: {}, message: {}", sessionId, category, message);
+        long startedAt = System.nanoTime();
         saveMessage(sessionId, MessageRole.USER, message, null);
 
         String rewrittenQuery = queryRewriter.doQueryRewrite(message);
         String traceId = UUID.randomUUID().toString();
-        SourceDocumentCollector sourceCollector = new SourceDocumentCollector();
+        RagTraceCollector traceCollector = new RagTraceCollector();
 
-        var ragAdvisor = KnowledgeBaseRagConfig.createRagAdvisor(pgVectorVectorStore, category, sourceCollector::capture);
+        var ragAdvisor = KnowledgeBaseRagConfig.createRagAdvisor(pgVectorVectorStore, category, traceCollector::capture);
         ChatStreamAccumulator accumulator = new ChatStreamAccumulator(
-                () -> buildSourceReferences(sourceCollector.getDocuments(), traceId),
+                () -> buildSourceReferences(traceCollector.getDocuments(), traceId),
                 (content, sources) -> {
                     log.info("流式 RAG 检索来源数: {}, AI 回复长度: {}", sources.size(), content != null ? content.length() : 0);
                     saveMessage(sessionId, MessageRole.ASSISTANT, content, sources);
+                    recordTraceSuccess("CHAT_STREAM", sessionId, message, rewrittenQuery, category, traceId, startedAt, traceCollector);
                 }
         );
 
@@ -136,7 +148,10 @@ public class ChatService {
                 .content()
                 .map(accumulator::append)
                 .concatWith(Flux.defer(() -> Flux.just(accumulator.complete())))
-                .doOnError(error -> log.error("流式聊天失败 - session: {}", sessionId, error));
+                .doOnError(error -> {
+                    log.error("流式聊天失败 - session: {}", sessionId, error);
+                    recordTraceFailure("CHAT_STREAM", sessionId, message, rewrittenQuery, category, traceId, startedAt, error);
+                });
     }
 
     /**
@@ -214,6 +229,58 @@ public class ChatService {
             }
         }
         chatMessageRepository.save(msg);
+    }
+
+    private void recordTraceSuccess(String mode,
+                                    String sessionId,
+                                    String originalQuery,
+                                    String rewrittenQuery,
+                                    String category,
+                                    String traceId,
+                                    long startedAt,
+                                    RagTraceCollector traceCollector) {
+        try {
+            ragTraceService.recordSuccess(
+                    mode,
+                    sessionId,
+                    originalQuery,
+                    rewrittenQuery,
+                    category,
+                    traceId,
+                    elapsedMs(startedAt),
+                    traceCollector.toTraceItems()
+            );
+        } catch (RuntimeException e) {
+            log.warn("RAG trace persistence failed - traceId={}", traceId, e);
+        }
+    }
+
+    private void recordTraceFailure(String mode,
+                                    String sessionId,
+                                    String originalQuery,
+                                    String rewrittenQuery,
+                                    String category,
+                                    String traceId,
+                                    long startedAt,
+                                    Throwable error) {
+        try {
+            ragTraceService.recordFailure(
+                    mode,
+                    sessionId,
+                    originalQuery,
+                    rewrittenQuery,
+                    category,
+                    traceId,
+                    elapsedMs(startedAt),
+                    error.getMessage()
+            );
+        } catch (RuntimeException e) {
+            log.warn("RAG trace failure persistence failed - traceId={}", traceId, e);
+        }
+    }
+
+    private long elapsedMs(long startedAt) {
+        return Math.max(0, (System.nanoTime() - startedAt) / 1_000_000);
     }
 
     /**

@@ -11,6 +11,7 @@
         <router-link to="/">首页</router-link>
         <router-link to="/chat">知识库工作台</router-link>
         <router-link to="/report">研究报告模式</router-link>
+        <router-link to="/traces">Trace Dashboard</router-link>
       </nav>
     </header>
 

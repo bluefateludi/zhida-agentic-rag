@@ -54,6 +54,15 @@ export const appRoutes = [
     }
   },
   {
+    path: '/traces',
+    name: 'TraceDashboard',
+    component: () => import('../views/TraceDashboard.vue'),
+    meta: {
+      title: 'Trace Dashboard - 智答 AI',
+      description: '查看最近 RAG trace、问题改写、延迟、召回数量和来源片段'
+    }
+  },
+  {
     path: '/documents',
     redirect: '/chat/documents'
   }

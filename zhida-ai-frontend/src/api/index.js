@@ -163,6 +163,16 @@ export const runRagEvaluation = (caseIds = []) => {
   return request.post('/eval/run', { caseIds })
 }
 
+// ==================== Trace Dashboard ====================
+
+export const listRecentTraces = (limit = 20) => {
+  return request.get('/traces/recent', { params: { limit } })
+}
+
+export const getTraceDetail = (traceId) => {
+  return request.get(`/traces/${traceId}`)
+}
+
 // ==================== Agent ====================
 
 export const chatWithAgent = (message) => {

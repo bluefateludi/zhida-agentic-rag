@@ -39,6 +39,12 @@ public class KnowledgeBaseRagConfig {
         return createRagAdvisor(vectorStore, category, SourceContextHolder::setSources, true);
     }
 
+    public static RetrievalAugmentationAdvisor createPmRagAdvisor(VectorStore vectorStore,
+                                                                  String category,
+                                                                  Consumer<List<Document>> sourceConsumer) {
+        return createRagAdvisor(vectorStore, category, sourceConsumer, true);
+    }
+
     private static RetrievalAugmentationAdvisor createRagAdvisor(VectorStore vectorStore,
                                                                String category,
                                                                Consumer<List<Document>> sourceConsumer,

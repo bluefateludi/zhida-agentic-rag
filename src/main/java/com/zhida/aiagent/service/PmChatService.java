@@ -8,6 +8,7 @@ import com.zhida.aiagent.model.enums.ChatMode;
 import com.zhida.aiagent.model.enums.MessageRole;
 import com.zhida.aiagent.rag.KnowledgeBaseRagConfig;
 import com.zhida.aiagent.rag.QueryRewriter;
+import com.zhida.aiagent.rag.RagTraceCollector;
 import com.zhida.aiagent.rag.SourceContextHolder;
 import com.zhida.aiagent.repository.ChatMessageRepository;
 import jakarta.annotation.Resource;
@@ -65,6 +66,9 @@ public class PmChatService {
     @Resource
     private ChatMessageRepository chatMessageRepository;
 
+    @Resource
+    private RagTraceService ragTraceService;
+
     public PmChatService(ChatModel dashscopeChatModel,
                          WebResearchService webResearchService,
                          ChatSessionService chatSessionService) {
@@ -76,26 +80,36 @@ public class PmChatService {
     }
 
     public ChatService.ChatServiceResponse chat(String message, String sessionId, String category) {
+        long startedAt = System.nanoTime();
         chatSessionService.getSession(sessionId, ChatMode.PM);
         saveMessage(sessionId, MessageRole.USER, message, null);
 
         String traceId = UUID.randomUUID().toString();
-        String rewrittenQuery = queryRewriter.doQueryRewrite(message);
-        WebResearchService.WebResearchResult webResearchResult = webResearchService.research(rewrittenQuery);
-        SourceContextHolder.clear();
+        String rewrittenQuery = message;
+        RagTraceCollector traceCollector = new RagTraceCollector();
 
-        var ragAdvisor = KnowledgeBaseRagConfig.createPmRagAdvisor(pgVectorVectorStore, category);
-        var aiResponse = chatClient.prompt()
-                .user(buildPmPrompt(message, rewrittenQuery, webResearchResult.summary()))
-                .advisors(ragAdvisor)
-                .call()
-                .chatResponse();
+        try {
+            rewrittenQuery = queryRewriter.doQueryRewrite(message);
+            WebResearchService.WebResearchResult webResearchResult = webResearchService.research(rewrittenQuery);
 
-        String content = aiResponse.getResult().getOutput().getText();
-        List<SourceReference> sources = mergeSources(webResearchResult.sources(), traceId);
-        saveMessage(sessionId, MessageRole.ASSISTANT, content, sources);
-        SourceContextHolder.clear();
-        return new ChatService.ChatServiceResponse(content, sources);
+            var ragAdvisor = KnowledgeBaseRagConfig.createPmRagAdvisor(pgVectorVectorStore, category, traceCollector::capture);
+            var aiResponse = chatClient.prompt()
+                    .user(buildPmPrompt(message, rewrittenQuery, webResearchResult.summary()))
+                    .advisors(ragAdvisor)
+                    .call()
+                    .chatResponse();
+
+            String content = aiResponse.getResult().getOutput().getText();
+            List<SourceReference> sources = mergeSources(webResearchResult.sources(), traceId, traceCollector.getDocuments());
+            saveMessage(sessionId, MessageRole.ASSISTANT, content, sources);
+            recordTraceSuccess("PM", sessionId, message, rewrittenQuery, category, traceId, startedAt, traceCollector);
+            return new ChatService.ChatServiceResponse(content, sources);
+        } catch (RuntimeException e) {
+            recordTraceFailure("PM", sessionId, message, rewrittenQuery, category, traceId, startedAt, e);
+            throw e;
+        } finally {
+            SourceContextHolder.clear();
+        }
     }
 
     public Flux<ChatStreamEvent> chatStream(String message, String sessionId, String category) {
@@ -103,15 +117,20 @@ public class PmChatService {
         saveMessage(sessionId, MessageRole.USER, message, null);
 
         return Flux.defer(() -> {
+                    long startedAt = System.nanoTime();
                     String rewrittenQuery = queryRewriter.doQueryRewrite(message);
                     String traceId = UUID.randomUUID().toString();
+                    RagTraceCollector traceCollector = new RagTraceCollector();
                     WebResearchService.WebResearchResult webResearchResult = webResearchService.research(rewrittenQuery);
                     SourceContextHolder.clear();
 
-                    var ragAdvisor = KnowledgeBaseRagConfig.createPmRagAdvisor(pgVectorVectorStore, category);
+                    var ragAdvisor = KnowledgeBaseRagConfig.createPmRagAdvisor(pgVectorVectorStore, category, traceCollector::capture);
                     ChatStreamAccumulator accumulator = new ChatStreamAccumulator(
-                            () -> mergeSources(webResearchResult.sources(), traceId),
-                            (content, sources) -> saveMessage(sessionId, MessageRole.ASSISTANT, content, sources)
+                            () -> mergeSources(webResearchResult.sources(), traceId, traceCollector.getDocuments()),
+                            (content, sources) -> {
+                                saveMessage(sessionId, MessageRole.ASSISTANT, content, sources);
+                                recordTraceSuccess("PM_STREAM", sessionId, message, rewrittenQuery, category, traceId, startedAt, traceCollector);
+                            }
                     );
 
                     return chatClient.prompt()
@@ -120,7 +139,8 @@ public class PmChatService {
                             .stream()
                             .content()
                             .map(accumulator::append)
-                            .concatWith(Flux.defer(() -> Flux.just(accumulator.complete())));
+                            .concatWith(Flux.defer(() -> Flux.just(accumulator.complete())))
+                            .doOnError(error -> recordTraceFailure("PM_STREAM", sessionId, message, rewrittenQuery, category, traceId, startedAt, error));
                 })
                 .onErrorResume(error -> {
                     log.warn("PM 流式回复失败，返回兜底回复 - session: {}, error={}", sessionId, error.toString());
@@ -148,9 +168,9 @@ public class PmChatService {
         return prompt.toString();
     }
 
-    private List<SourceReference> mergeSources(List<SourceReference> webSources, String traceId) {
-        List<SourceReference> merged = new ArrayList<>(webSources);
-        List<Document> kbDocs = SourceContextHolder.getSources();
+    private List<SourceReference> mergeSources(List<SourceReference> webSources, String traceId, List<Document> kbDocs) {
+        List<SourceReference> safeWebSources = webSources == null ? List.of() : webSources;
+        List<SourceReference> merged = new ArrayList<>(safeWebSources);
         if (kbDocs != null && !kbDocs.isEmpty()) {
             merged.addAll(java.util.stream.IntStream.range(0, kbDocs.size())
                     .mapToObj(index -> {
@@ -165,7 +185,7 @@ public class PmChatService {
                         source.setDocumentId(parseDocumentId(doc.getMetadata().get("documentId")));
                         source.setCategory((String) doc.getMetadata().get("category"));
                         source.setChunkIndex(parseInteger(doc.getMetadata().get("chunkIndex")));
-                        source.setRank(webSources.size() + index + 1);
+                        source.setRank(safeWebSources.size() + index + 1);
                         source.setTraceId(traceId);
                         return source;
                     })
@@ -215,5 +235,57 @@ public class PmChatService {
             }
         }
         chatMessageRepository.save(msg);
+    }
+
+    private void recordTraceSuccess(String mode,
+                                    String sessionId,
+                                    String originalQuery,
+                                    String rewrittenQuery,
+                                    String category,
+                                    String traceId,
+                                    long startedAt,
+                                    RagTraceCollector traceCollector) {
+        try {
+            ragTraceService.recordSuccess(
+                    mode,
+                    sessionId,
+                    originalQuery,
+                    rewrittenQuery,
+                    category,
+                    traceId,
+                    elapsedMs(startedAt),
+                    traceCollector.toTraceItems()
+            );
+        } catch (RuntimeException e) {
+            log.warn("PM RAG trace persistence failed - traceId={}", traceId, e);
+        }
+    }
+
+    private void recordTraceFailure(String mode,
+                                    String sessionId,
+                                    String originalQuery,
+                                    String rewrittenQuery,
+                                    String category,
+                                    String traceId,
+                                    long startedAt,
+                                    Throwable error) {
+        try {
+            ragTraceService.recordFailure(
+                    mode,
+                    sessionId,
+                    originalQuery,
+                    rewrittenQuery,
+                    category,
+                    traceId,
+                    elapsedMs(startedAt),
+                    error.getMessage()
+            );
+        } catch (RuntimeException e) {
+            log.warn("PM RAG trace failure persistence failed - traceId={}", traceId, e);
+        }
+    }
+
+    private long elapsedMs(long startedAt) {
+        return Math.max(0, (System.nanoTime() - startedAt) / 1_000_000);
     }
 }
