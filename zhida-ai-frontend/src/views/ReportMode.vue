@@ -95,6 +95,10 @@
             <span>信息缺口</span>
             <strong>{{ informationGaps.length }} 项</strong>
           </article>
+          <article class="metric-card surface-panel">
+            <span>Trace ID</span>
+            <strong class="trace-id-text">{{ traceId || '等待生成' }}</strong>
+          </article>
         </div>
 
         <div v-if="hasReport" class="result-layout">
@@ -104,7 +108,16 @@
                 <span class="section-label">Markdown Report</span>
                 <h2>研究报告正文</h2>
               </div>
-              <span class="generated-time">{{ formattedGeneratedAt }}</span>
+              <div class="report-actions">
+                <span class="generated-time">{{ formattedGeneratedAt }}</span>
+                <router-link
+                  v-if="traceId"
+                  class="control-button trace-link"
+                  :to="{ path: '/traces', query: { traceId } }"
+                >
+                  查看本次 Trace
+                </router-link>
+              </div>
             </div>
             <div class="markdown-body" v-html="renderedReport"></div>
           </article>
@@ -216,6 +229,7 @@ const form = reactive({
 
 const brief = ref(null)
 const reportMarkdown = ref('')
+const traceId = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
 
@@ -251,6 +265,7 @@ async function handleGenerate() {
     const res = await generateReport(form.question, form.category)
     brief.value = res.data?.brief || null
     reportMarkdown.value = res.data?.reportMarkdown || ''
+    traceId.value = res.data?.traceId || ''
     if (!brief.value || !reportMarkdown.value) {
       errorMessage.value = '报告结果为空，请稍后重试。'
     }
@@ -267,6 +282,7 @@ function handleReset() {
   form.category = ''
   brief.value = null
   reportMarkdown.value = ''
+  traceId.value = ''
   errorMessage.value = ''
 }
 </script>
@@ -294,6 +310,7 @@ function handleReset() {
 .report-brand,
 .report-nav,
 .button-row,
+.report-actions,
 .panel-heading,
 .evidence-meta,
 .empty-tags {
@@ -394,6 +411,12 @@ function handleReset() {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+}
+
+.report-actions {
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .console-heading h2,
@@ -568,6 +591,12 @@ function handleReset() {
   line-height: 1.35;
 }
 
+.trace-id-text {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 13px;
+  word-break: break-all;
+}
+
 .result-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
@@ -584,6 +613,14 @@ function handleReset() {
   color: var(--text-quaternary);
   font-size: 12px;
   white-space: nowrap;
+}
+
+.trace-link {
+  min-height: 34px;
+  padding: 0 12px;
+  border-color: rgba(126, 209, 216, 0.28);
+  background: rgba(88, 166, 173, 0.12);
+  color: var(--accent-hover);
 }
 
 .markdown-body {

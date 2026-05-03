@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 
 import java.time.Instant;
 import java.util.List;
@@ -19,7 +20,6 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
@@ -67,7 +67,7 @@ class ReportControllerTest {
         when(researchAgentService.buildBrief("这个方向值得做吗", "agent")).thenReturn(brief);
         when(writerAgentService.writeReport(brief)).thenReturn("# 研究报告\n\n信息不足");
 
-        mockMvc.perform(post("/report/generate")
+        MvcResult result = mockMvc.perform(post("/report/generate")
                         .contentType("application/json")
                         .content("""
                                 {
@@ -77,19 +77,23 @@ class ReportControllerTest {
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("\"reportMarkdown\":\"# 研究报告\\n\\n信息不足\"")))
-                .andExpect(content().string(containsString("\"rewrittenQuestion\":\"评估这个 Agentic RAG 方向是否值得投入\"")));
+                .andExpect(content().string(containsString("\"rewrittenQuestion\":\"评估这个 Agentic RAG 方向是否值得投入\"")))
+                .andReturn();
 
         ArgumentCaptor<List<RetrievalTraceItem>> retrievalsCaptor = ArgumentCaptor.captor();
+        ArgumentCaptor<String> traceIdCaptor = ArgumentCaptor.captor();
         verify(ragTraceService).recordSuccess(
                 eq("REPORT"),
                 isNull(),
                 eq("这个方向值得做吗"),
                 eq("评估这个 Agentic RAG 方向是否值得投入"),
                 eq("agent"),
-                anyString(),
+                traceIdCaptor.capture(),
                 anyLong(),
                 retrievalsCaptor.capture()
         );
+        assertThat(result.getResponse().getContentAsString())
+                .contains("\"traceId\":\"" + traceIdCaptor.getValue() + "\"");
         assertThat(retrievalsCaptor.getValue())
                 .singleElement()
                 .satisfies(item -> {

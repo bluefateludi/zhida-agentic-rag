@@ -49,7 +49,7 @@ public class ReportController {
             brief = researchAgentService.buildBrief(originalQuestion, category);
             String reportMarkdown = writerAgentService.writeReport(brief);
             recordTraceSuccess(originalQuestion, category, traceId, startedAt, brief);
-            return ResponseEntity.ok(new ReportGenerateResponse(brief, reportMarkdown));
+            return ResponseEntity.ok(new ReportGenerateResponse(brief, reportMarkdown, traceId));
         } catch (RuntimeException e) {
             recordTraceFailure(originalQuestion, category, traceId, startedAt, brief, e);
             throw e;
@@ -135,6 +135,6 @@ public class ReportController {
     private record ReportGenerateRequest(String question, String category) {
     }
 
-    private record ReportGenerateResponse(ResearchBrief brief, String reportMarkdown) {
+    private record ReportGenerateResponse(ResearchBrief brief, String reportMarkdown, String traceId) {
     }
 }

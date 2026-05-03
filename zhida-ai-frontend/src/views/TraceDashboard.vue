@@ -147,8 +147,10 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { getTraceDetail, listRecentTraces } from '../api'
 
+const route = useRoute()
 const recentTraces = ref([])
 const selectedTrace = ref(null)
 const isLoading = ref(false)
@@ -165,6 +167,10 @@ const averageRetrievalCount = computed(() => {
   const total = recentTraces.value.reduce((sum, trace) => sum + Number(trace.retrievalCount || 0), 0)
   return (total / recentTraces.value.length).toFixed(1)
 })
+const requestedTraceId = computed(() => {
+  const value = route.query.traceId
+  return Array.isArray(value) ? value[0] : value
+})
 const sources = computed(() => parseSources(selectedTrace.value))
 
 onMounted(loadTraces)
@@ -176,8 +182,9 @@ async function loadTraces() {
   try {
     const res = await listRecentTraces(20)
     recentTraces.value = res.data || []
-    if (recentTraces.value.length) {
-      await selectTrace(recentTraces.value[0].traceId)
+    const targetTraceId = requestedTraceId.value || recentTraces.value[0]?.traceId
+    if (targetTraceId) {
+      await selectTrace(targetTraceId)
     } else {
       selectedTrace.value = null
     }

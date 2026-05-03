@@ -28,6 +28,9 @@ assert.match(evaluationSource, /to="\/traces"/, 'evaluation dashboard should lin
 
 assert.match(traceSource, /listRecentTraces/, 'dashboard should load recent traces')
 assert.match(traceSource, /getTraceDetail/, 'dashboard should load selected trace detail')
+assert.match(traceSource, /useRoute/, 'dashboard should read route query parameters')
+assert.match(traceSource, /route\.query\.traceId/, 'dashboard should support opening a requested trace id')
+assert.match(traceSource, /requestedTraceId/, 'dashboard should prioritize the trace id from the report page')
 assert.match(traceSource, /recentTraces/, 'dashboard should keep recent trace state')
 assert.match(traceSource, /selectedTrace/, 'dashboard should keep selected trace state')
 assert.match(traceSource, /originalQuery/, 'dashboard should render original query')
