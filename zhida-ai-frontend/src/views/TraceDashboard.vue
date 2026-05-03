@@ -18,8 +18,8 @@
     <main class="trace-main">
       <section class="summary-grid">
         <article class="summary-card surface-panel">
-          <span>最近 Trace</span>
-          <strong>{{ recentTraces.length }}</strong>
+          <span>当前筛选</span>
+          <strong>{{ filteredTraces.length }}</strong>
         </article>
         <article class="summary-card surface-panel">
           <span>成功执行</span>
@@ -40,9 +40,22 @@
           <span class="section-label">Trace Control</span>
           <h2>最近执行记录</h2>
         </div>
-        <button class="control-button refresh-button" type="button" :disabled="isLoading" @click="loadTraces">
-          {{ isLoading ? '刷新中...' : '刷新' }}
-        </button>
+        <div class="toolbar-actions">
+          <div class="mode-filter" aria-label="Trace mode filter">
+            <button
+              v-for="option in modeOptions"
+              :key="option.value"
+              type="button"
+              :class="{ active: selectedMode === option.value }"
+              @click="selectMode(option.value)"
+            >
+              {{ option.label }}
+            </button>
+          </div>
+          <button class="control-button refresh-button" type="button" :disabled="isLoading" @click="loadTraces">
+            {{ isLoading ? '刷新中...' : '刷新' }}
+          </button>
+        </div>
       </section>
 
       <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
@@ -51,15 +64,15 @@
         <aside class="trace-list-panel surface-panel">
           <div class="panel-heading">
             <span class="section-label">Recent Traces</span>
-            <span>{{ recentTraces.length }} items</span>
+            <span>{{ filteredTraces.length }} / {{ recentTraces.length }} items</span>
           </div>
 
-          <div v-if="recentTraces.length" class="trace-list">
+          <div v-if="filteredTraces.length" class="trace-list">
             <button
-              v-for="trace in recentTraces"
+              v-for="trace in filteredTraces"
               :key="trace.traceId"
               class="trace-row"
-              :class="{ active: selectedTrace?.traceId === trace.traceId, failed: trace.success === false }"
+              :class="{ active: selectedTrace?.traceId === trace.traceId, failed: trace.success === false, report: trace.mode === 'REPORT' }"
               type="button"
               @click="selectTrace(trace.traceId)"
             >
@@ -74,7 +87,7 @@
               </div>
             </button>
           </div>
-          <p v-else class="empty-text">暂无 trace 记录。</p>
+          <p v-else class="empty-text">当前筛选下暂无 trace 记录。</p>
         </aside>
 
         <article class="trace-detail-panel surface-panel">
@@ -86,6 +99,9 @@
               </div>
               <span class="status-chip" :class="{ failed: selectedTrace.success === false }">
                 {{ selectedTrace.success === false ? 'FAILED' : 'SUCCESS' }}
+              </span>
+              <span v-if="selectedTrace?.mode === 'REPORT'" class="status-chip report-mode-chip">
+                REPORT TRACE
               </span>
             </div>
 
@@ -151,21 +167,33 @@ import { useRoute } from 'vue-router'
 import { getTraceDetail, listRecentTraces } from '../api'
 
 const route = useRoute()
+const modeOptions = [
+  { label: 'ALL', value: 'ALL' },
+  { label: 'CHAT', value: 'CHAT' },
+  { label: 'PM', value: 'PM' },
+  { label: 'REPORT', value: 'REPORT' },
+  { label: 'EVAL', value: 'EVAL' }
+]
 const recentTraces = ref([])
 const selectedTrace = ref(null)
+const selectedMode = ref('ALL')
 const isLoading = ref(false)
 const errorMessage = ref('')
 
-const successCount = computed(() => recentTraces.value.filter(trace => trace.success !== false).length)
+const filteredTraces = computed(() => {
+  if (selectedMode.value === 'ALL') return recentTraces.value
+  return recentTraces.value.filter(trace => traceMatchesMode(trace, selectedMode.value))
+})
+const successCount = computed(() => filteredTraces.value.filter(trace => trace.success !== false).length)
 const averageLatency = computed(() => {
-  if (!recentTraces.value.length) return 0
-  const total = recentTraces.value.reduce((sum, trace) => sum + Number(trace.latencyMs || 0), 0)
-  return Math.round(total / recentTraces.value.length)
+  if (!filteredTraces.value.length) return 0
+  const total = filteredTraces.value.reduce((sum, trace) => sum + Number(trace.latencyMs || 0), 0)
+  return Math.round(total / filteredTraces.value.length)
 })
 const averageRetrievalCount = computed(() => {
-  if (!recentTraces.value.length) return 0
-  const total = recentTraces.value.reduce((sum, trace) => sum + Number(trace.retrievalCount || 0), 0)
-  return (total / recentTraces.value.length).toFixed(1)
+  if (!filteredTraces.value.length) return 0
+  const total = filteredTraces.value.reduce((sum, trace) => sum + Number(trace.retrievalCount || 0), 0)
+  return (total / filteredTraces.value.length).toFixed(1)
 })
 const requestedTraceId = computed(() => {
   const value = route.query.traceId
@@ -205,6 +233,24 @@ async function selectTrace(traceId) {
     console.error('Failed to load trace detail', error)
     errorMessage.value = 'Trace 详情加载失败。'
   }
+}
+
+function selectMode(mode) {
+  selectedMode.value = mode
+  const firstTrace = filteredTraces.value[0]
+  if (firstTrace) {
+    selectTrace(firstTrace.traceId)
+  } else {
+    selectedTrace.value = null
+  }
+}
+
+function traceMatchesMode(trace, mode) {
+  const traceMode = trace?.mode || ''
+  if (mode === 'CHAT') return traceMode.startsWith('CHAT')
+  if (mode === 'PM') return traceMode.startsWith('PM')
+  if (mode === 'EVAL') return traceMode.startsWith('EVAL')
+  return traceMode === mode
 }
 
 function parseSources(trace) {
@@ -283,6 +329,8 @@ function formatScore(score) {
 .trace-nav,
 .summary-grid,
 .trace-toolbar,
+.toolbar-actions,
+.mode-filter,
 .panel-heading,
 .trace-row-top,
 .trace-row-meta,
@@ -294,6 +342,8 @@ function formatScore(score) {
 }
 
 .trace-nav,
+.toolbar-actions,
+.mode-filter,
 .metric-strip,
 .source-meta,
 .trace-row-meta {
@@ -390,6 +440,37 @@ function formatScore(score) {
   color: var(--text-primary);
 }
 
+.toolbar-actions {
+  justify-content: flex-end;
+}
+
+.mode-filter {
+  min-height: 40px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.mode-filter button {
+  min-height: 32px;
+  padding: 0 11px;
+  border-radius: 7px;
+  border: 0;
+  background: transparent;
+  color: var(--text-quaternary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.mode-filter button:hover,
+.mode-filter button.active {
+  background: rgba(126, 209, 216, 0.12);
+  color: var(--text-primary);
+}
+
 .refresh-button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
@@ -450,6 +531,13 @@ function formatScore(score) {
   border-color: rgba(217, 103, 103, 0.2);
 }
 
+.trace-row.report {
+  border-color: rgba(198, 161, 91, 0.28);
+  background:
+    linear-gradient(135deg, rgba(198, 161, 91, 0.08), transparent 48%),
+    rgba(255, 255, 255, 0.025);
+}
+
 .trace-row-top,
 .trace-row-meta {
   justify-content: space-between;
@@ -508,6 +596,12 @@ function formatScore(score) {
   border-color: rgba(217, 103, 103, 0.22);
   background: rgba(217, 103, 103, 0.12);
   color: #f2b1b1;
+}
+
+.report-mode-chip {
+  border-color: rgba(198, 161, 91, 0.28);
+  background: rgba(198, 161, 91, 0.12);
+  color: #f6d9a7;
 }
 
 .query-grid {
