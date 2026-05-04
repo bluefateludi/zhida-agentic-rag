@@ -128,6 +128,24 @@
               {{ selectedTrace.errorMessage }}
             </p>
 
+            <section v-if="failureAnalysis" class="failure-analysis">
+              <div class="panel-heading">
+                <span class="section-label">Failure Analysis</span>
+                <span>{{ failureAnalysis.type }}</span>
+              </div>
+
+              <div class="failure-analysis-body">
+                <div class="failure-error">
+                  <span>errorMessage</span>
+                  <p>{{ failureAnalysis.errorMessage }}</p>
+                </div>
+                <div class="failure-suggestion">
+                  <span>排查建议</span>
+                  <p>{{ failureAnalysis.suggestion }}</p>
+                </div>
+              </div>
+            </section>
+
             <section class="timeline-section">
               <div class="panel-heading">
                 <span class="section-label">Trace Timeline</span>
@@ -234,6 +252,16 @@ const traceTimeline = computed(() => {
   const status = selectedTrace.value?.success === false ? 'blocked' : 'done'
   return markSlowTimelineSteps(buildTraceTimeline(selectedTrace.value, tracePayload.value, sources.value, status))
 })
+const failureAnalysis = computed(() => {
+  if (!hasFailureSignal(selectedTrace.value, tracePayload.value, traceTimeline.value)) return null
+  const type = classifyFailureType(selectedTrace.value, tracePayload.value, sources.value, traceTimeline.value)
+
+  return {
+    type,
+    errorMessage: getTraceErrorMessage(selectedTrace.value, tracePayload.value),
+    suggestion: getFailureSuggestion(type)
+  }
+})
 
 onMounted(loadTraces)
 
@@ -293,6 +321,52 @@ function parseSources(trace) {
   if (Array.isArray(fromTraceJson)) return fromTraceJson
   const fromSourcesJson = parseJson(trace.sourcesJson)
   return Array.isArray(fromSourcesJson) ? fromSourcesJson : []
+}
+
+function hasFailureSignal(trace, payload, timeline) {
+  if (!trace) return false
+  if (trace.success === false) return true
+  if (getTraceErrorMessage(trace, payload) !== '未记录具体错误消息。') return true
+  return Array.isArray(timeline) && timeline.some(step => step.status === 'blocked')
+}
+
+function classifyFailureType(trace, payload, retrievedSources, timeline) {
+  const errorText = getTraceErrorMessage(trace, payload).toLowerCase()
+  if (errorText.includes('timeout') || errorText.includes('timed out') || errorText.includes('超时')) {
+    return '超时'
+  }
+
+  if (Number(trace?.retrievalCount) === 0 || !retrievedSources.length) {
+    return '空证据'
+  }
+
+  if (trace?.mode === 'REPORT' && hasBlockedReportWritingStage(timeline)) {
+    return '写作失败'
+  }
+
+  return '系统异常'
+}
+
+function hasBlockedReportWritingStage(timeline) {
+  if (!Array.isArray(timeline)) return false
+  return timeline.some(step => {
+    const name = step.name || ''
+    return step.status === 'blocked' && (name === 'Writer Agent' || name === 'Report Output')
+  })
+}
+
+function getTraceErrorMessage(trace, payload) {
+  return trace?.errorMessage || payload?.errorMessage || payload?.error || payload?.exception || '未记录具体错误消息。'
+}
+
+function getFailureSuggestion(type) {
+  const suggestions = {
+    空证据: '检查 category、向量库、文档入库状态',
+    超时: '检查 Web Research / LLM 响应耗时',
+    写作失败: '检查 ResearchBrief 是否为空、Writer Agent 调用',
+    系统异常: '查看 errorMessage 和后端日志 traceId'
+  }
+  return suggestions[type] || suggestions.系统异常
 }
 
 function buildTraceTimeline(trace, payload, retrievedSources, status) {
@@ -799,6 +873,63 @@ function formatTimelineStatus(status) {
   margin-top: 16px;
 }
 
+.failure-analysis {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: var(--radius-panel);
+  border: 1px solid rgba(217, 103, 103, 0.26);
+  background:
+    linear-gradient(135deg, rgba(217, 103, 103, 0.08), transparent 44%),
+    rgba(255, 255, 255, 0.025);
+}
+
+.failure-analysis .panel-heading > span:last-child {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 103, 103, 0.24);
+  background: rgba(217, 103, 103, 0.12);
+  color: #f2b1b1;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.failure-analysis-body {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(220px, 0.7fr);
+  gap: 12px;
+}
+
+.failure-error,
+.failure-suggestion {
+  padding: 14px;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--border-default);
+  background: rgba(9, 17, 20, 0.58);
+}
+
+.failure-error span,
+.failure-suggestion span {
+  color: var(--accent-hover);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.failure-error p,
+.failure-suggestion p {
+  margin-top: 8px;
+  color: var(--text-secondary);
+  line-height: 1.65;
+  word-break: break-word;
+}
+
+.failure-error p {
+  color: #f2b1b1;
+}
+
 .timeline-section {
   margin-top: 22px;
 }
@@ -974,7 +1105,8 @@ function formatTimelineStatus(status) {
 
   .summary-grid,
   .trace-grid,
-  .query-grid {
+  .query-grid,
+  .failure-analysis-body {
     grid-template-columns: 1fr;
   }
 }
