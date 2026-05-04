@@ -1,19 +1,20 @@
-# 智答 Agentic RAG
+# 智答 AI Agentic RAG
 
-智答 Agentic RAG 是一个面向企业知识库、项目文档和专业资料问答场景的智能检索增强生成系统。项目围绕“文档接入、向量检索、流式问答、引用追溯、产品分析和评测闭环”构建，提供从知识入库到问答验证的一体化能力。
+智答 AI Agentic RAG 是一个面向企业知识库、项目资料和专业文档问答场景的智能检索增强生成系统。项目以 Spring Boot 后端和 Vue 3 前端为主体，围绕知识库入库、RAG 问答、产品分析、研究报告生成、评测闭环和 Trace 可观测性构建了一套完整的 Agentic RAG 应用原型。
 
-系统采用 Spring Boot + Spring AI + pgvector 构建后端知识检索与智能体编排能力，使用 Vue 3 + Vite 构建前端工作台，适合用于个人知识库、企业内部文档助手、研发资料问答、产品需求分析和智能体应用原型。
+这个项目的重点不是只做一次问答，而是把“问题改写、知识库检索、联网研究、Agent 写作、来源追溯、失败诊断”串成可展示、可追踪、可调试的链路，适合用于课程设计、项目答辩、面试作品集和企业知识助手原型。
 
-## 项目亮点
+## 核心能力
 
-- 文档知识库：支持 PDF、DOCX、TXT、Markdown 等文件上传、解析、切片、向量化和状态管理。
-- RAG 问答链路：基于 pgvector 进行语义检索，将知识片段注入大模型上下文，降低无依据回答风险。
-- 流式对话体验：通过 SSE 返回模型生成过程，前端支持连续对话、会话历史和工作台式交互。
-- 引用来源追溯：回答可关联文档来源、片段内容和元信息，便于核验答案依据。
-- 产品分析模式：面向需求评审、方案判断和竞品分析，结合知识库与联网研究输出结构化分析。
-- 评测闭环：内置评测用例与运行接口，可用于验证问答效果、引用质量和检索链路稳定性。
-- 工具扩展能力：保留联网搜索、网页抓取、资源下载、文件操作、终端调用和 PDF 生成等智能体工具。
-- MCP 服务示例：包含图片搜索 MCP Server，可作为外部工具接入智能体流程。
+- 知识库管理：支持上传和管理 PDF、DOCX、TXT、Markdown 等资料，后端完成解析、切片、向量化和入库。
+- RAG 问答工作台：基于 pgvector 召回知识片段，将证据注入大模型上下文，支持普通问答和 SSE 流式回答。
+- 来源追溯：回答结果关联文档来源、片段内容、分数和元信息，方便核验答案依据。
+- 产品分析模式：面向需求评审、方案分析和产品判断，结合知识库资料与联网研究生成结构化分析。
+- 研究报告模式：输入研究问题后，系统生成 ResearchBrief、知识库证据、网络证据、信息缺口和 Markdown 报告。
+- RAG 评测闭环：提供评测用例列表和运行接口，用于观察回答命中、来源数量和失败情况。
+- Trace Dashboard：记录 CHAT、PM、REPORT、EVAL 等链路的 trace，可按模式筛选并查看每次执行详情。
+- Trace Timeline：持久化 Query Rewrite、Retrieval、Web Research、Writer Agent、Report Output 等阶段及耗时。
+- 失败分析视图：对失败 trace 做前端归因，区分空证据、超时、写作失败和系统异常，并给出排查建议。
 
 ## 技术栈
 
@@ -35,7 +36,7 @@
 - Vue Router
 - Axios
 - Marked / Highlight.js / DOMPurify
-- SSE 流式渲染
+- Server-Sent Events
 
 **部署**
 
@@ -49,15 +50,27 @@
 .
 ├── src/                              # Spring Boot 后端服务
 ├── zhida-ai-frontend/                # Vue 3 前端工作台
-├── zhida-image-search-mcp-server/    # 图片搜索 MCP 服务示例
-├── docs/                             # 设计文档、排障记录和开发说明
-├── repository/                       # 本地知识库与运行数据目录
+├── zhida-image-search-mcp-server/    # 图片搜索 MCP Server 示例
+├── docs/                             # 设计文档、排障记录和开发计划
+├── repository/                       # 本地知识库和运行数据目录
 ├── docker-compose.yml                # 容器化部署编排
 ├── Dockerfile                        # 后端镜像构建文件
 ├── init.sql                          # PostgreSQL / pgvector 初始化脚本
 ├── DEPLOY.md                         # 部署说明
 └── DESIGN.md                         # 系统设计说明
 ```
+
+## 页面入口
+
+| 页面 | 路径 | 说明 |
+| --- | --- | --- |
+| 首页 | `/` | 项目能力展示和入口导航 |
+| 知识库工作台 | `/chat` | 文档问答、来源引用、会话工作台 |
+| 文档管理 | `/chat/documents` | 上传和管理知识库文档 |
+| 产品分析模式 | `/pm` | 面向产品和需求分析的 Agentic RAG |
+| 研究报告模式 | `/report` | 生成 ResearchBrief 和 Markdown 研究报告 |
+| RAG 评测 | `/evaluation` | 运行评测用例并查看结果 |
+| Trace Dashboard | `/traces` | 查看 trace、timeline、来源和失败分析 |
 
 ## 快速开始
 
@@ -69,7 +82,7 @@
 - PostgreSQL 16 + pgvector
 - Docker / Docker Compose，可选
 
-### 配置环境变量
+### 1. 配置环境变量
 
 复制环境变量模板：
 
@@ -77,7 +90,7 @@
 cp .env.example .env
 ```
 
-按需配置以下变量：
+按需配置：
 
 ```env
 POSTGRES_PASSWORD=your_database_password
@@ -90,26 +103,36 @@ SPRING_PROFILES_ACTIVE=prod
 
 生产环境请通过环境变量或密钥管理服务注入真实密钥，避免将 `.env`、数据库密码或第三方服务 Key 提交到仓库。
 
-### 启动后端
+### 2. 启动数据库
+
+如果本地已有 PostgreSQL + pgvector，可按 `application-local.yml` 配置连接信息。
+
+也可以直接使用 Docker Compose 启动完整环境：
+
+```bash
+docker compose up -d --build
+```
+
+### 3. 启动后端
 
 ```bash
 mvn spring-boot:run
 ```
 
-默认服务地址：
+默认后端地址：
 
 ```text
 http://localhost:8123/api
 ```
 
-接口文档地址：
+接口文档：
 
 ```text
 http://localhost:8123/api/doc.html
 http://localhost:8123/api/swagger-ui.html
 ```
 
-### 启动前端
+### 4. 启动前端
 
 ```bash
 cd zhida-ai-frontend
@@ -117,15 +140,11 @@ npm install
 npm run dev
 ```
 
-前端开发服务默认由 Vite 启动，实际端口以终端输出为准。
+Vite 会输出前端访问地址，通常是：
 
-### Docker Compose 部署
-
-```bash
-docker compose up -d --build
+```text
+http://localhost:5173
 ```
-
-更多部署细节见 [DEPLOY.md](DEPLOY.md)。
 
 ## 核心接口
 
@@ -143,27 +162,44 @@ docker compose up -d --build
 | 知识问答 | `GET` | `/api/chat/stream` | 流式知识问答 |
 | 知识问答 | `GET` | `/api/chat/history/{sessionId}` | 查询会话历史 |
 | 产品分析 | `POST` | `/api/pm/session` | 创建产品分析会话 |
+| 产品分析 | `POST` | `/api/pm/send` | 发送非流式产品分析消息 |
 | 产品分析 | `GET` | `/api/pm/stream` | 流式产品分析 |
-| 智能体 | `GET` | `/api/ai/agent/chat` | 智能体对话入口 |
+| 产品分析 | `GET` | `/api/pm/history/{sessionId}` | 查询产品分析历史 |
+| 研究报告 | `POST` | `/api/report/generate` | 生成 ResearchBrief、Markdown 报告和 traceId |
+| Trace | `GET` | `/api/traces/recent` | 查询最近 trace |
+| Trace | `GET` | `/api/traces/{traceId}` | 查询单次 trace 详情 |
 | 评测 | `GET` | `/api/eval/cases` | 查询评测用例 |
-| 评测 | `POST` | `/api/eval/run` | 运行问答评测 |
+| 评测 | `POST` | `/api/eval/run` | 运行 RAG 评测 |
+| 智能体 | `GET` | `/api/ai/agent/chat` | 通用智能体对话入口 |
 
-## 前端功能
+## 推荐联调流程
 
-- 项目首页与能力展示
-- 知识库文档上传和管理
-- RAG 聊天工作台
-- SSE 流式回答展示
-- 引用来源卡片
-- 产品分析工作区
-- 评测结果展示
+1. 启动数据库、后端和前端。
+2. 打开 `/chat/documents` 上传测试文档，确认文档状态和分类。
+3. 打开 `/chat` 提问，检查回答、来源卡片和 traceId。
+4. 打开 `/pm` 测试产品分析链路。
+5. 打开 `/report` 生成研究报告，检查 Markdown、ResearchBrief、kbEvidence、webEvidence 和 informationGaps。
+6. 在报告页点击“查看本次 Trace”，跳转 `/traces?traceId=...`。
+7. 在 Trace Dashboard 中查看 mode 筛选、Timeline 阶段耗时、slow 阶段高亮、来源片段和失败分析。
+8. 打开 `/evaluation` 运行评测用例，观察评测结果和对应 trace。
 
-## 配置文件
+## Trace 可观测性
 
-- `src/main/resources/application.yml`：通用服务、模型、OpenAPI 和日志配置。
-- `src/main/resources/application-local.yml`：本地数据库与向量库配置。
-- `.env.example`：容器化部署环境变量模板。
-- `docker-compose.yml`：数据库、后端和前端容器编排。
+系统会记录不同模式下的执行链路：
+
+- `CHAT` / `CHAT_STREAM`：Query Rewrite、Retrieval、Answer。
+- `PM` / `PM_STREAM`：Query Rewrite、Retrieval、Answer。
+- `REPORT`：Query Rewrite、KB Retrieval、Web Research、Writer Agent、Report Output。
+- `EVAL`：通过评测链路产生的问答记录。
+
+Trace Dashboard 支持：
+
+- 按 mode 筛选：ALL / CHAT / PM / REPORT / EVAL。
+- 查看原始问题、改写问题、category、latencyMs、retrievalCount、sessionId。
+- 优先读取后端持久化的 `traceJson.timeline`。
+- 展示每个阶段的 `durationMs`，并高亮耗时最长的 slow 阶段。
+- 展示 Sources 列表，便于核验召回证据。
+- 对失败 trace 展示 Failure Analysis，归因为空证据、超时、写作失败或系统异常。
 
 ## 本地验证
 
@@ -173,6 +209,13 @@ docker compose up -d --build
 mvn test
 ```
 
+前端 Trace Dashboard 测试：
+
+```bash
+cd zhida-ai-frontend
+node tests\trace-dashboard.test.mjs
+```
+
 前端构建：
 
 ```bash
@@ -180,14 +223,20 @@ cd zhida-ai-frontend
 npm run build
 ```
 
-## 开发规划
+## 配置文件
 
-- 完善文档解析队列和失败重试机制。
-- 增加更多检索评测指标和可视化报告。
-- 优化长文档引用定位与片段高亮体验。
-- 扩展 MCP 工具接入与智能体任务编排能力。
-- 增加生产环境权限控制、租户隔离和审计日志。
+- `src/main/resources/application.yml`：通用服务、模型、OpenAPI 和日志配置。
+- `src/main/resources/application-local.yml`：本地数据库与向量库配置。
+- `.env.example`：容器化部署环境变量模板。
+- `docker-compose.yml`：PostgreSQL、后端和前端容器编排。
+- `zhida-ai-frontend/vite.config.js`：前端开发和构建配置。
 
-## License
+## 说明
+
+本仓库对应项目：
+
+```text
+https://github.com/bluefateludi/zhida-agentic-rag
+```
 
 本项目当前暂未声明开源许可证。正式公开发布前建议补充 `LICENSE` 文件，明确代码使用、分发和二次开发规则。
