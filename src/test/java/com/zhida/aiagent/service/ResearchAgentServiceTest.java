@@ -1,6 +1,7 @@
 package com.zhida.aiagent.service;
 
 import com.zhida.aiagent.model.dto.ResearchBrief;
+import com.zhida.aiagent.service.ResearchAgentService.TimedResearchBrief;
 import com.zhida.aiagent.rag.QueryRewriter;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.document.Document;
@@ -83,5 +84,27 @@ class ResearchAgentServiceTest {
         assertThat(brief.informationGaps()).contains("知识库中缺少足够的直接证据");
         assertThat(brief.informationGaps()).contains("结论依赖公开网络资料，仍需结合内部知识库进一步核验");
         verify(webResearchService).research("AI Agent 行业最新趋势");
+    }
+
+    @Test
+    void shouldBuildTimedBriefWithResearchStageDurations() {
+        VectorStore vectorStore = mock(VectorStore.class);
+        QueryRewriter queryRewriter = mock(QueryRewriter.class);
+        WebResearchService webResearchService = mock(WebResearchService.class);
+        when(queryRewriter.doQueryRewrite("最新的 AI Agent 行业趋势是什么")).thenReturn("AI Agent 行业最新趋势");
+        when(vectorStore.similaritySearch(any(SearchRequest.class))).thenReturn(List.of());
+        when(webResearchService.research("AI Agent 行业最新趋势")).thenReturn(
+                new WebResearchService.WebResearchResult("- 行业正在走向工作流编排", List.of())
+        );
+
+        ResearchAgentService service = new ResearchAgentService(vectorStore, queryRewriter, webResearchService);
+        TimedResearchBrief timedBrief = service.buildTimedBrief("最新的 AI Agent 行业趋势是什么", null);
+
+        assertThat(timedBrief.brief().rewrittenQuestion()).isEqualTo("AI Agent 行业最新趋势");
+        assertThat(timedBrief.timeline())
+                .extracting("name")
+                .containsExactly("Query Rewrite", "KB Retrieval", "Web Research");
+        assertThat(timedBrief.timeline())
+                .allSatisfy(step -> assertThat(step.durationMs()).isNotNull().isGreaterThanOrEqualTo(0L));
     }
 }

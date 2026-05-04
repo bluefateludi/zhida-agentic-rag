@@ -37,6 +37,30 @@ public class RagTraceService {
                               Long latencyMs,
                               List<RetrievalTraceItem> retrievals) {
         List<RetrievalTraceItem> safeRetrievals = retrievals == null ? List.of() : retrievals;
+        recordSuccessWithTimeline(
+                mode,
+                sessionId,
+                originalQuery,
+                rewrittenQuery,
+                category,
+                traceId,
+                latencyMs,
+                safeRetrievals,
+                buildSuccessTimeline(mode, latencyMs, safeRetrievals)
+        );
+    }
+
+    public void recordSuccessWithTimeline(String mode,
+                                          String sessionId,
+                                          String originalQuery,
+                                          String rewrittenQuery,
+                                          String category,
+                                          String traceId,
+                                          Long latencyMs,
+                                          List<RetrievalTraceItem> retrievals,
+                                          List<TraceTimelineStep> timeline) {
+        List<RetrievalTraceItem> safeRetrievals = retrievals == null ? List.of() : retrievals;
+        List<TraceTimelineStep> safeTimeline = timeline == null ? List.of() : timeline;
         RagTrace trace = new RagTrace(
                 traceId,
                 originalQuery,
@@ -44,7 +68,7 @@ public class RagTraceService {
                 category,
                 latencyMs,
                 safeRetrievals,
-                buildSuccessTimeline(mode, latencyMs, safeRetrievals)
+                safeTimeline
         );
         RagTraceLog log = baseLog(mode, sessionId, originalQuery, rewrittenQuery, category, traceId, latencyMs);
         log.setRetrievalCount(safeRetrievals.size());

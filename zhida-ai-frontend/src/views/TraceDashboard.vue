@@ -139,7 +139,7 @@
                   v-for="step in traceTimeline"
                   :key="step.name"
                   class="timeline-step"
-                  :class="step.status"
+                  :class="[step.status, { slow: step.isSlow }]"
                 >
                   <span class="timeline-marker" aria-hidden="true"></span>
                   <div class="timeline-body">
@@ -232,7 +232,7 @@ const sources = computed(() => parseSources(selectedTrace.value))
 const tracePayload = computed(() => parseJson(selectedTrace.value?.traceJson) || {})
 const traceTimeline = computed(() => {
   const status = selectedTrace.value?.success === false ? 'blocked' : 'done'
-  return buildTraceTimeline(selectedTrace.value, tracePayload.value, sources.value, status)
+  return markSlowTimelineSteps(buildTraceTimeline(selectedTrace.value, tracePayload.value, sources.value, status))
 })
 
 onMounted(loadTraces)
@@ -385,8 +385,21 @@ function normalizeTimelineStep(step) {
     status: status === 'blocked' ? 'blocked' : status === 'pending' ? 'pending' : 'done',
     summary: step.summary || '后端已记录该阶段。',
     evidenceCount: step.evidenceCount ?? null,
+    durationMs: step.durationMs ?? null,
     durationLabel
   }
+}
+
+function markSlowTimelineSteps(steps) {
+  const durations = steps
+    .map(step => Number(step.durationMs))
+    .filter(duration => Number.isFinite(duration) && duration > 0)
+  const maxDuration = durations.length ? Math.max(...durations) : null
+
+  return steps.map(step => ({
+    ...step,
+    isSlow: maxDuration !== null && Number(step.durationMs) === maxDuration
+  }))
 }
 
 function parseJson(value) {
@@ -831,6 +844,11 @@ function formatTimelineStatus(status) {
   box-shadow: 0 0 0 4px rgba(217, 103, 103, 0.08);
 }
 
+.timeline-step.slow .timeline-marker {
+  border-color: rgba(198, 161, 91, 0.62);
+  box-shadow: 0 0 0 4px rgba(198, 161, 91, 0.1);
+}
+
 .timeline-body {
   padding: 14px 16px;
   border-radius: var(--radius-panel);
@@ -879,6 +897,13 @@ function formatTimelineStatus(status) {
   border-color: rgba(217, 103, 103, 0.22);
   background: rgba(217, 103, 103, 0.12);
   color: #f2b1b1;
+}
+
+.timeline-step.slow .timeline-body {
+  border-color: rgba(198, 161, 91, 0.28);
+  background:
+    linear-gradient(135deg, rgba(198, 161, 91, 0.08), transparent 42%),
+    rgba(255, 255, 255, 0.025);
 }
 
 .timeline-meta {

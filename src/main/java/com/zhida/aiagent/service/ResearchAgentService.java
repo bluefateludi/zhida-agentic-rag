@@ -2,6 +2,7 @@ package com.zhida.aiagent.service;
 
 import com.zhida.aiagent.model.dto.ResearchBrief;
 import com.zhida.aiagent.model.dto.SourceReference;
+import com.zhida.aiagent.model.dto.TraceTimelineStep;
 import com.zhida.aiagent.rag.QueryRewriter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
@@ -34,14 +35,26 @@ public class ResearchAgentService {
     }
 
     public ResearchBrief buildBrief(String originalQuestion, String category) {
+        return buildTimedBrief(originalQuestion, category).brief();
+    }
+
+    public TimedResearchBrief buildTimedBrief(String originalQuestion, String category) {
+        long phaseStartedAt = System.nanoTime();
         String rewrittenQuestion = queryRewriter.doQueryRewrite(originalQuestion);
+        long queryRewriteDurationMs = elapsedMs(phaseStartedAt);
+
+        phaseStartedAt = System.nanoTime();
         List<SourceReference> kbEvidence = retrieveKnowledgeBaseEvidence(rewrittenQuestion, category);
+        long kbRetrievalDurationMs = elapsedMs(phaseStartedAt);
+
         boolean useWebResearch = shouldUseWebResearch(originalQuestion, rewrittenQuestion, kbEvidence);
+        phaseStartedAt = System.nanoTime();
         List<SourceReference> webEvidence = useWebResearch
                 ? retrieveWebEvidence(rewrittenQuestion, kbEvidence.size())
                 : List.of();
+        long webResearchDurationMs = useWebResearch ? elapsedMs(phaseStartedAt) : 0L;
 
-        return new ResearchBrief(
+        ResearchBrief brief = new ResearchBrief(
                 originalQuestion,
                 rewrittenQuestion,
                 buildSubQuestions(rewrittenQuestion),
@@ -49,6 +62,14 @@ public class ResearchAgentService {
                 webEvidence,
                 buildInformationGaps(kbEvidence, webEvidence, useWebResearch),
                 Instant.now()
+        );
+        return new TimedResearchBrief(
+                brief,
+                List.of(
+                        new TraceTimelineStep("Query Rewrite", "DONE", "问题已改写为研究报告检索表达。", null, queryRewriteDurationMs),
+                        new TraceTimelineStep("KB Retrieval", "DONE", evidenceSummary(kbEvidence.size(), "知识库证据"), kbEvidence.size(), kbRetrievalDurationMs),
+                        new TraceTimelineStep("Web Research", "DONE", evidenceSummary(webEvidence.size(), "公开网络证据"), webEvidence.size(), webResearchDurationMs)
+                )
         );
     }
 
@@ -161,6 +182,22 @@ public class ResearchAgentService {
                 || lower.contains("news")
                 || lower.contains("latest")
                 || lower.contains("trend");
+    }
+
+    private long elapsedMs(long startedAt) {
+        return Math.max(0, (System.nanoTime() - startedAt) / 1_000_000);
+    }
+
+    private String evidenceSummary(int evidenceCount, String label) {
+        return evidenceCount > 0
+                ? "已记录 " + evidenceCount + " 条" + label + "。"
+                : "未记录" + label + "。";
+    }
+
+    public record TimedResearchBrief(ResearchBrief brief, List<TraceTimelineStep> timeline) {
+        public TimedResearchBrief {
+            timeline = timeline == null ? List.of() : List.copyOf(timeline);
+        }
     }
 
     private Long parseDocumentId(Object value) {

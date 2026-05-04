@@ -3,6 +3,7 @@ package com.zhida.aiagent.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.zhida.aiagent.model.dto.RagTrace;
 import com.zhida.aiagent.model.dto.RetrievalTraceItem;
+import com.zhida.aiagent.model.dto.TraceTimelineStep;
 import com.zhida.aiagent.model.entity.RagTraceLog;
 import com.zhida.aiagent.repository.RagTraceLogRepository;
 import org.junit.jupiter.api.Test;
@@ -120,6 +121,38 @@ class RagTraceServiceTest {
         assertThat(trace.timeline().get(1).evidenceCount()).isEqualTo(1);
         assertThat(trace.timeline().get(2).evidenceCount()).isEqualTo(1);
         assertThat(trace.timeline().get(4).durationMs()).isEqualTo(250L);
+    }
+
+    @Test
+    void shouldPersistProvidedTimelineWithStageDurations() throws Exception {
+        RagTraceLogRepository repository = mock(RagTraceLogRepository.class);
+        RagTraceService service = new RagTraceService(repository, new ObjectMapper());
+
+        service.recordSuccessWithTimeline(
+                "REPORT",
+                null,
+                "AI Agent 行业趋势",
+                "分析 AI Agent 行业趋势",
+                "agent",
+                "trace-report",
+                260L,
+                List.of(),
+                List.of(
+                        new TraceTimelineStep("Query Rewrite", "DONE", "改写完成", null, 12L),
+                        new TraceTimelineStep("KB Retrieval", "DONE", "检索完成", 0, 34L),
+                        new TraceTimelineStep("Web Research", "DONE", "联网完成", 0, 56L),
+                        new TraceTimelineStep("Writer Agent", "DONE", "写作完成", 0, 78L),
+                        new TraceTimelineStep("Report Output", "DONE", "输出完成", 0, 80L)
+                )
+        );
+
+        ArgumentCaptor<RagTraceLog> captor = ArgumentCaptor.forClass(RagTraceLog.class);
+        verify(repository).save(captor.capture());
+
+        RagTrace trace = new ObjectMapper().readValue(captor.getValue().getTraceJson(), RagTrace.class);
+        assertThat(trace.timeline())
+                .extracting("durationMs")
+                .containsExactly(12L, 34L, 56L, 78L, 80L);
     }
 
     @Test

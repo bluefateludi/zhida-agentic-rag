@@ -3,8 +3,10 @@ package com.zhida.aiagent.controller;
 import com.zhida.aiagent.model.dto.ResearchBrief;
 import com.zhida.aiagent.model.dto.RetrievalTraceItem;
 import com.zhida.aiagent.model.dto.SourceReference;
+import com.zhida.aiagent.model.dto.TraceTimelineStep;
 import com.zhida.aiagent.service.RagTraceService;
 import com.zhida.aiagent.service.ResearchAgentService;
+import com.zhida.aiagent.service.ResearchAgentService.TimedResearchBrief;
 import com.zhida.aiagent.service.WriterAgentService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -64,7 +66,14 @@ class ReportControllerTest {
                 List.of("缺少用户访谈"),
                 Instant.parse("2026-05-02T10:15:30Z")
         );
-        when(researchAgentService.buildBrief("这个方向值得做吗", "agent")).thenReturn(brief);
+        when(researchAgentService.buildTimedBrief("这个方向值得做吗", "agent")).thenReturn(new TimedResearchBrief(
+                brief,
+                List.of(
+                        new TraceTimelineStep("Query Rewrite", "DONE", "改写完成", null, 1L),
+                        new TraceTimelineStep("KB Retrieval", "DONE", "检索完成", 1, 2L),
+                        new TraceTimelineStep("Web Research", "DONE", "联网跳过", 0, 0L)
+                )
+        ));
         when(writerAgentService.writeReport(brief)).thenReturn("# 研究报告\n\n信息不足");
 
         MvcResult result = mockMvc.perform(post("/report/generate")
@@ -81,8 +90,9 @@ class ReportControllerTest {
                 .andReturn();
 
         ArgumentCaptor<List<RetrievalTraceItem>> retrievalsCaptor = ArgumentCaptor.captor();
+        ArgumentCaptor<List<TraceTimelineStep>> timelineCaptor = ArgumentCaptor.captor();
         ArgumentCaptor<String> traceIdCaptor = ArgumentCaptor.captor();
-        verify(ragTraceService).recordSuccess(
+        verify(ragTraceService).recordSuccessWithTimeline(
                 eq("REPORT"),
                 isNull(),
                 eq("这个方向值得做吗"),
@@ -90,7 +100,8 @@ class ReportControllerTest {
                 eq("agent"),
                 traceIdCaptor.capture(),
                 anyLong(),
-                retrievalsCaptor.capture()
+                retrievalsCaptor.capture(),
+                timelineCaptor.capture()
         );
         assertThat(result.getResponse().getContentAsString())
                 .contains("\"traceId\":\"" + traceIdCaptor.getValue() + "\"");
@@ -106,5 +117,10 @@ class ReportControllerTest {
                     assertThat(item.score()).isEqualTo(0.86);
                     assertThat(item.contentPreview()).contains("研究 Agent");
                 });
+        assertThat(timelineCaptor.getValue())
+                .extracting("name")
+                .containsExactly("Query Rewrite", "KB Retrieval", "Web Research", "Writer Agent", "Report Output");
+        assertThat(timelineCaptor.getValue())
+                .allSatisfy(step -> assertThat(step.durationMs()).isNotNull().isGreaterThanOrEqualTo(0L));
     }
 }

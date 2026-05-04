@@ -3,6 +3,7 @@ package com.zhida.aiagent.controller;
 import com.zhida.aiagent.model.dto.ResearchBrief;
 import com.zhida.aiagent.model.dto.RetrievalTraceItem;
 import com.zhida.aiagent.model.dto.SourceReference;
+import com.zhida.aiagent.model.dto.TraceTimelineStep;
 import com.zhida.aiagent.service.RagTraceService;
 import com.zhida.aiagent.service.ResearchAgentService;
 import com.zhida.aiagent.service.WriterAgentService;
@@ -44,12 +45,25 @@ public class ReportController {
         ResearchBrief brief = null;
         String originalQuestion = request.question();
         String category = request.category();
+        long writerDurationMs = 0L;
+        long outputDurationMs = 0L;
+        List<TraceTimelineStep> researchTimeline = List.of();
 
         try {
-            brief = researchAgentService.buildBrief(originalQuestion, category);
+            ResearchAgentService.TimedResearchBrief timedBrief = researchAgentService.buildTimedBrief(originalQuestion, category);
+            brief = timedBrief.brief();
+            researchTimeline = timedBrief.timeline();
+
+            long phaseStartedAt = System.nanoTime();
             String reportMarkdown = writerAgentService.writeReport(brief);
-            recordTraceSuccess(originalQuestion, category, traceId, startedAt, brief);
-            return ResponseEntity.ok(new ReportGenerateResponse(brief, reportMarkdown, traceId));
+            writerDurationMs = elapsedMs(phaseStartedAt);
+
+            phaseStartedAt = System.nanoTime();
+            ReportGenerateResponse response = new ReportGenerateResponse(brief, reportMarkdown, traceId);
+            outputDurationMs = elapsedMs(phaseStartedAt);
+
+            recordTraceSuccess(originalQuestion, category, traceId, startedAt, brief, researchTimeline, writerDurationMs, outputDurationMs);
+            return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             recordTraceFailure(originalQuestion, category, traceId, startedAt, brief, e);
             throw e;
@@ -60,9 +74,12 @@ public class ReportController {
                                     String category,
                                     String traceId,
                                     long startedAt,
-                                    ResearchBrief brief) {
+                                    ResearchBrief brief,
+                                    List<TraceTimelineStep> researchTimeline,
+                                    long writerDurationMs,
+                                    long outputDurationMs) {
         try {
-            ragTraceService.recordSuccess(
+            ragTraceService.recordSuccessWithTimeline(
                     "REPORT",
                     null,
                     originalQuestion,
@@ -70,7 +87,8 @@ public class ReportController {
                     category,
                     traceId,
                     elapsedMs(startedAt),
-                    toRetrievalTraceItems(brief)
+                    toRetrievalTraceItems(brief),
+                    buildReportTimeline(brief, researchTimeline, writerDurationMs, outputDurationMs)
             );
         } catch (RuntimeException e) {
             log.warn("Report trace persistence failed - traceId={}", traceId, e);
@@ -119,6 +137,19 @@ public class ReportController {
             ));
         }
         return traceItems;
+    }
+
+    private List<TraceTimelineStep> buildReportTimeline(ResearchBrief brief,
+                                                        List<TraceTimelineStep> researchTimeline,
+                                                        long writerDurationMs,
+                                                        long outputDurationMs) {
+        int kbEvidenceCount = brief.kbEvidence().size();
+        int webEvidenceCount = brief.webEvidence().size();
+        int totalEvidenceCount = kbEvidenceCount + webEvidenceCount;
+        List<TraceTimelineStep> timeline = new ArrayList<>(researchTimeline == null ? List.of() : researchTimeline);
+        timeline.add(new TraceTimelineStep("Writer Agent", "DONE", "写作 Agent 已组织报告结构与结论。", totalEvidenceCount, Math.max(0, writerDurationMs)));
+        timeline.add(new TraceTimelineStep("Report Output", "DONE", "报告响应已生成。", totalEvidenceCount, Math.max(0, outputDurationMs)));
+        return timeline;
     }
 
     private String truncate(String text, int maxLength) {
